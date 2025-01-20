@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  triton:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.triton
+    ports:
+      - "8000:8000"  # HTTP endpoint
+      - "8001:8001"  # gRPC endpoint
+      - "8002:8002"  # Metrics endpoint
+    volumes:
+      - ./model_repository:/opt/tritonserver/models
+    networks:
+      - triton_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health/live"]
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+      interval: 1000000s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./models:/app/models
+      - ./imagenet_classes.json:/app/imagenet_classes.json
+    depends_on:
+      triton:
+        condition: service_healthy
+    environment:
+      - TRITON_URI=triton:8000
+    networks:
+      - triton_network
+
+networks:
+  triton_network:
+    driver: bridge 
